@@ -271,7 +271,7 @@ If you enjoy it:
 
 AUTHOR
 
-Gary Doman
+Gary Doman/TizWildin
 
 Creator of experimental audio tools and procedural music systems.
 
