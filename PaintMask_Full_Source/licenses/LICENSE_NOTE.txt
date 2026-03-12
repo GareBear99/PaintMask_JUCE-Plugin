@@ -1,0 +1,6 @@
+PaintMask is intended to follow an indie-friendly model:
+- 30-day Studio trial
+- Lite fallback after expiry
+- Studio unlock at $1/month
+
+Exact legal licensing should be finalized before public binary release.

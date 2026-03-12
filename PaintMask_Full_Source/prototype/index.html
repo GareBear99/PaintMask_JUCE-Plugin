@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PaintMask Lite / Studio Prototype</title>
+<style>
+  :root{
+    --bg:#07070a; --panel:#0d0f16; --panel2:#121624; --ink:#eef1ff; --muted:#a6b0d6; --line:rgba(255,255,255,.1);
+    --glow:rgba(255,90,140,.35);
+  }
+  html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 50% 0%, #18192a 0%, #090a12 50%, #050508 100%);color:var(--ink);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;overflow:hidden}
+  #app{display:grid;grid-template-columns:280px 1fr 280px;height:100%}
+  .panel{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.025));border-right:1px solid var(--line);backdrop-filter:blur(12px);overflow:auto}
+  .panel.right{border-right:none;border-left:1px solid var(--line)}
+  .sect{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .title{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#ffd6e6;margin:0 0 10px;font-weight:700}
+  .row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:8px 0}
+  .toolgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  button,.chip{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));color:var(--ink);padding:9px 10px;border-radius:12px;cursor:pointer}
+  button:hover,.chip:hover{border-color:rgba(255,255,255,.2)}
+  button.active{box-shadow:0 0 0 1px rgba(255,120,180,.18) inset,0 0 24px rgba(255,90,140,.18);border-color:rgba(255,120,180,.35)}
+  input[type=range],input[type=color],select{width:100%}
+  input[type=number],input[type=text],select{background:#090b11;color:var(--ink);border:1px solid rgba(255,255,255,.12);padding:8px 10px;border-radius:10px}
+  small,.muted{color:var(--muted)}
+  #stage{position:relative;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  #paint,#fx{position:absolute;inset:0}
+  #overlay{position:absolute;inset:0;pointer-events:none}
+  #topbar{position:absolute;left:14px;right:14px;top:14px;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+  .badge{pointer-events:auto;padding:8px 10px;border-radius:999px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px)}
+  .colors{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .sw{height:34px;border-radius:12px;border:1px solid rgba(255,255,255,.12);cursor:pointer}
+  #cursorPreview{width:18px;height:18px;border:2px solid rgba(255,255,255,.7);border-radius:50%;position:absolute;pointer-events:none;transform:translate(-50%,-50%)}
+  .note{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside class="panel left">
+    <div class="sect">
+      <h3 class="title">PaintMask</h3>
+      <div class="note">Paint music with color, splashes, masks, and geometry. <b>30-day Studio trial</b>, then falls back to Lite unless unlocked.</div>
+    </div>
+    <div class="sect">
+      <h3 class="title">Tools</h3>
+      <div class="toolgrid" id="toolGrid"></div>
+      <div class="row"><span>Brush size</span><span id="sizeLabel">18</span></div>
+      <input id="brushSize" type="range" min="4" max="60" value="18"/>
+      <div class="row"><span>Opacity</span><span id="opLabel">0.85</span></div>
+      <input id="opacity" type="range" min="0.1" max="1" step="0.01" value="0.85"/>
+    </div>
+    <div class="sect">
+      <h3 class="title">Color Engine</h3>
+      <div class="colors" id="swatches"></div>
+      <div class="row"><span>Custom</span><input id="customColor" type="color" value="#ff4d6d"/></div>
+      <div class="note muted">Red = attack/drive, Green = body/groove, Blue = space, blends create hybrid behavior, black masks events.</div>
+    </div>
+    <div class="sect">
+      <h3 class="title">Transport</h3>
+      <div class="pillrow">
+        <button id="startAudio">Start Audio</button>
+        <button id="playBtn">Play</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+      <div class="row"><span>Tempo</span><span id="tempoLabel">110</span></div>
+      <input id="tempo" type="range" min="60" max="180" value="110"/>
+      <div class="row"><span>Scan mode</span><span></span></div>
+      <select id="scanMode">
+        <option value="lr">Left → Right</option>
+        <option value="ping">Ping Pong</option>
+        <option value="circle" data-studio="1">Circular (Studio)</option>
+        <option value="spiral" data-studio="1">Spiral (Studio)</option>
+      </select>
+      <div class="row"><span>Seed</span><input id="seedText" type="text" value="PAINTMASK-001"/></div>
+      <button id="newSeed">Random Seed</button>
+    </div>
+  </aside>
+  <main id="stage">
+    <canvas id="paint"></canvas>
+    <canvas id="fx"></canvas>
+    <div id="overlay">
+      <div id="topbar">
+        <div class="badge" id="modeBadge">Mode: Studio Trial</div>
+        <div class="badge" id="statusBadge">Idle</div>
+      </div>
+      <div id="cursorPreview"></div>
+    </div>
+  </main>
+  <aside class="panel right">
+    <div class="sect">
+      <h3 class="title">Canvas Engine</h3>
+      <div class="row"><span>Scale</span><span id="scaleLabel">C Minor</span></div>
+      <select id="scaleSel">
+        <option value="minor">C Minor</option>
+        <option value="major">C Major</option>
+        <option value="pent">C Pentatonic</option>
+        <option value="chrom">Chromatic</option>
+      </select>
+      <div class="row"><span>Preview synth</span><span id="synthLabel">0.55</span></div>
+      <input id="synthMix" type="range" min="0" max="1" step="0.01" value="0.55"/>
+      <div class="row"><span>Density glow</span><span id="glowLabel">0.70</span></div>
+      <input id="densityGlow" type="range" min="0" max="1" step="0.01" value="0.70"/>
+    </div>
+    <div class="sect">
+      <h3 class="title">State</h3>
+      <div class="pillrow">
+        <button id="exportState">Export JSON</button>
+        <button id="saveLocal">Save Local</button>
+        <button id="loadLocal">Load Local</button>
+      </div>
+      <div class="note" id="trialNote"></div>
+    </div>
+    <div class="sect">
+      <h3 class="title">Feature Gate</h3>
+      <div class="note">Studio-only tools: Star, Spiral, Motion. Studio-only scan modes: Circular, Spiral.</div>
+      <div class="pillrow">
+        <button id="unlockStudio">Mock Unlock Studio</button>
+        <button id="resetLicense">Reset License</button>
+      </div>
+    </div>
+    <div class="sect">
+      <h3 class="title">Legend</h3>
+      <div class="note muted">Brush = freehand notes. Splash = cluster rhythm. Line = ramps. Circle/Triangle/Star/Spiral = geometry patterns. Mask subtracts events. Motion paints CC-like modulation zones.</div>
+    </div>
+  </aside>
+</div>
+<script>
+(() => {
+const paint = document.getElementById('paint');
+const fx = document.getElementById('fx');
+const pctx = paint.getContext('2d');
+const fctx = fx.getContext('2d');
+const cursorPreview = document.getElementById('cursorPreview');
+const statusBadge = document.getElementById('statusBadge');
+const modeBadge = document.getElementById('modeBadge');
+const trialNote = document.getElementById('trialNote');
+const toolDefs = [
+  ['brush','🖌'],['splash','💧'],['line','／'],['circle','⭕'],['triangle','🔺'],['star','✳'],['spiral','🌀'],['mask','⬛'],['motion','〰']
+];
+const studioTools = new Set(['star','spiral','motion']);
+let currentTool='brush', currentColor='#ff4d6d';
+let drawing=false, stroke=[], lineStart=null, audioStarted=false, playing=false, raf=0, transportPhase=0, lastTime=0;
+let events=[], particles=[];
+const state = {
+  brushSize:18, opacity:.85, tempo:110, scanMode:'lr', densityGlow:.70, synthMix:.55, scale:'minor', seed:'PAINTMASK-001'
+};
+const licenseKey='paintmask_license_v1';
+function readLicense(){
+  const now=Date.now();
+  let obj; try{ obj=JSON.parse(localStorage.getItem(licenseKey)||'null'); }catch{ obj=null; }
+  if(!obj){ obj={firstRun:now, unlocked:false}; localStorage.setItem(licenseKey, JSON.stringify(obj)); }
+  const days = Math.floor((now-obj.firstRun)/86400000);
+  const studio = obj.unlocked || days < 30;
+  const mode = obj.unlocked ? 'Studio Unlocked' : studio ? `Studio Trial — ${30-days} day${30-days===1?'':'s'} left` : 'Lite Mode';
+  modeBadge.textContent = `Mode: ${mode}`;
+  trialNote.textContent = obj.unlocked ? 'Studio manually unlocked for prototype.' : days < 30 ? `Full Studio active for ${30-days} more day(s). After that PaintMask falls back to Lite.` : 'Trial expired. Lite mode active. Studio is planned as $1/month after 30 days.';
+  return {studio, obj};
+}
+let license = readLicense();
+const toolGrid = document.getElementById('toolGrid');
+toolDefs.forEach(([id,label])=>{ const b=document.createElement('button'); b.textContent=label+' '+id; b.dataset.tool=id; if(id===currentTool) b.classList.add('active'); b.onclick=()=>selectTool(id); toolGrid.appendChild(b); });
+function selectTool(id){ if(studioTools.has(id)&&!license.studio){ status('Studio-only tool in Lite mode'); return; } currentTool=id; [...toolGrid.children].forEach(b=>b.classList.toggle('active',b.dataset.tool===id)); }
+function status(s){ statusBadge.textContent=s; }
+const swatches = ['#ff4d6d','#3ddc84','#4dc8ff','#ffe44d','#b45cff','#18d5c9','#ffffff','#000000'];
+const swWrap = document.getElementById('swatches');
+swatches.forEach(c=>{ const d=document.createElement('div'); d.className='sw'; d.style.background=c; d.onclick=()=>currentColor=c; swWrap.appendChild(d); });
+document.getElementById('customColor').oninput=e=>currentColor=e.target.value;
+function fit(){ for(const c of [paint,fx]){ c.width=c.clientWidth=paint.parentElement.clientWidth; c.height=c.clientHeight=paint.parentElement.clientHeight; } redraw(); }
+window.addEventListener('resize',fit);
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function randFromSeed(s){ let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return ()=>((h=Math.imul(h^h>>>15,2246822507))>>>0)/4294967295; }
+function hslFromHex(hex){ const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); let r=parseInt(m[1],16)/255,g=parseInt(m[2],16)/255,b=parseInt(m[3],16)/255; const max=Math.max(r,g,b), min=Math.min(r,g,b); let h,s,l=(max+min)/2; if(max===min){h=s=0;} else { const d=max-min; s=l>.5?d/(2-max-min):d/(max+min); switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;} h/=6;} return {h,s,l,r,g,b}; }
+function strokeEvent(tool, pts, color, size, opacity){ events.push({tool,pts,color,size,opacity,seed:state.seed}); }
+function addParticle(x,y,color,boost=1){ const rng=randFromSeed(state.seed+x+'|'+y+'|'+particles.length); for(let i=0;i<Math.floor(4+boost*6);i++) particles.push({x,y,vx:(rng()-.5)*2.2*boost,vy:(rng()-.5)*2.2*boost,life:1,size:1+rng()*4,color}); }
+function redraw(){ pctx.clearRect(0,0,paint.width,paint.height);
+  // grid
+  pctx.save(); pctx.globalAlpha=.08; pctx.strokeStyle='#b6c4ff'; for(let x=0;x<paint.width;x+=64){ pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,paint.height); pctx.stroke(); } for(let y=0;y<paint.height;y+=48){ pctx.beginPath(); pctx.moveTo(0,y); pctx.lineTo(paint.width,y); pctx.stroke(); } pctx.restore();
+  for(const ev of events) drawEvent(ev);
+}
+function drawEvent(ev){ const {tool,pts,color,size,opacity}=ev; pctx.save(); pctx.globalAlpha=opacity; pctx.lineCap='round'; pctx.lineJoin='round'; pctx.strokeStyle=color; pctx.fillStyle=color; pctx.shadowColor=color; pctx.shadowBlur=size*state.densityGlow*1.4;
+  if(tool==='mask'){ pctx.globalCompositeOperation='destination-out'; pctx.strokeStyle='rgba(0,0,0,1)'; pctx.shadowBlur=0; }
+  if(tool==='brush'||tool==='motion'){
+    pctx.lineWidth=size; pctx.beginPath(); pts.forEach((p,i)=> i? pctx.lineTo(p.x,p.y):pctx.moveTo(p.x,p.y)); pctx.stroke();
+  } else if(tool==='line'){
+    pctx.lineWidth=size; pctx.beginPath(); pctx.moveTo(pts[0].x,pts[0].y); pctx.lineTo(pts[1].x,pts[1].y); pctx.stroke();
+  } else {
+    const a=pts[0], b=pts[1]||pts[0]; const dx=b.x-a.x, dy=b.y-a.y, r=Math.hypot(dx,dy)||size*2;
+    if(tool==='splash'){
+      const rng=randFromSeed(ev.seed+JSON.stringify(a)); for(let i=0;i<32;i++){ const rr=rng()*r, ang=rng()*Math.PI*2; pctx.beginPath(); pctx.arc(a.x+Math.cos(ang)*rr,a.y+Math.sin(ang)*rr,size*(.12+rng()*0.28),0,Math.PI*2); pctx.fill(); }
+    } else if(tool==='circle'){
+      pctx.lineWidth=Math.max(2,size*.28); pctx.beginPath(); pctx.arc(a.x,a.y,r,0,Math.PI*2); pctx.stroke();
+    } else if(tool==='triangle'){
+      pctx.lineWidth=Math.max(2,size*.22); pctx.beginPath(); for(let i=0;i<3;i++){ const ang=-Math.PI/2+i*Math.PI*2/3; const x=a.x+Math.cos(ang)*r, y=a.y+Math.sin(ang)*r; i?pctx.lineTo(x,y):pctx.moveTo(x,y); } pctx.closePath(); pctx.stroke();
+    } else if(tool==='star'){
+      pctx.lineWidth=Math.max(2,size*.16); pctx.beginPath(); for(let i=0;i<10;i++){ const rr=i%2?r*.45:r; const ang=-Math.PI/2+i*Math.PI/5; const x=a.x+Math.cos(ang)*rr, y=a.y+Math.sin(ang)*rr; i?pctx.lineTo(x,y):pctx.moveTo(x,y); } pctx.closePath(); pctx.stroke();
+    } else if(tool==='spiral'){
+      pctx.lineWidth=Math.max(2,size*.15); pctx.beginPath(); for(let i=0;i<80;i++){ const t=i/79, rr=r*t, ang=t*Math.PI*6; const x=a.x+Math.cos(ang)*rr, y=a.y+Math.sin(ang)*rr; i?pctx.lineTo(x,y):pctx.moveTo(x,y); } pctx.stroke();
+    }
+  }
+  pctx.restore();
+}
+function pointerPos(e){ const r=paint.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+paint.addEventListener('pointermove', e=>{ const p=pointerPos(e); cursorPreview.style.left=e.clientX+'px'; cursorPreview.style.top=e.clientY+'px'; cursorPreview.style.width=state.brushSize+'px'; cursorPreview.style.height=state.brushSize+'px'; cursorPreview.style.borderColor=currentColor; if(drawing && (currentTool==='brush'||currentTool==='motion'||currentTool==='mask')){ stroke.push(p); strokeEvent(currentTool,[stroke[stroke.length-2],p],currentColor,state.brushSize,state.opacity); addParticle(p.x,p.y,currentColor,.4); redraw(); } });
+paint.addEventListener('pointerdown', e=>{ const p=pointerPos(e); drawing=true; lineStart=p; stroke=[p]; if(currentTool==='splash'){ strokeEvent('splash',[p,p],currentColor,state.brushSize,state.opacity); addParticle(p.x,p.y,currentColor,1.5); redraw(); drawing=false; } });
+paint.addEventListener('pointerup', e=>{ if(!drawing) return; const p=pointerPos(e); drawing=false; if(['line','circle','triangle','star','spiral'].includes(currentTool)){ if(studioTools.has(currentTool)&&!license.studio){ status('Studio-only geometry in Lite mode'); return; } strokeEvent(currentTool,[lineStart,p],currentColor,state.brushSize,state.opacity); addParticle(p.x,p.y,currentColor,1.0); redraw(); } lineStart=null; stroke=[]; });
+// UI bindings
+for(const [id,key,labelId,fmt] of [['brushSize','brushSize','sizeLabel',v=>v],['opacity','opacity','opLabel',v=>Number(v).toFixed(2)],['tempo','tempo','tempoLabel',v=>v],['densityGlow','densityGlow','glowLabel',v=>Number(v).toFixed(2)],['synthMix','synthMix','synthLabel',v=>Number(v).toFixed(2)]]){ const el=document.getElementById(id), lab=document.getElementById(labelId); el.oninput=()=>{ state[key]=Number(el.value); lab.textContent=fmt(el.value); }; }
+document.getElementById('scaleSel').onchange=e=>{ state.scale=e.target.value; document.getElementById('scaleLabel').textContent=e.target.selectedOptions[0].text; };
+document.getElementById('scanMode').onchange=e=>{ const opt=e.target.selectedOptions[0]; if(opt.dataset.studio && !license.studio){ status('Studio-only scan mode'); e.target.value='lr'; return; } state.scanMode=e.target.value; };
+document.getElementById('newSeed').onclick=()=>{ state.seed='PM-'+Math.random().toString(36).slice(2,8).toUpperCase(); document.getElementById('seedText').value=state.seed; status('New seed'); };
+document.getElementById('seedText').onchange=e=>state.seed=e.target.value;
+document.getElementById('clearBtn').onclick=()=>{ events=[]; particles=[]; redraw(); };
+document.getElementById('exportState').onclick=()=>{ const blob=new Blob([JSON.stringify({state,events},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='paintmask_state.json'; a.click(); };
+document.getElementById('saveLocal').onclick=()=>{ localStorage.setItem('paintmask_demo_state', JSON.stringify({state,events})); status('Saved local'); };
+document.getElementById('loadLocal').onclick=()=>{ const x=localStorage.getItem('paintmask_demo_state'); if(!x) return status('No local save'); const obj=JSON.parse(x); Object.assign(state,obj.state); events=obj.events||[]; redraw(); status('Loaded local'); };
+document.getElementById('unlockStudio').onclick=()=>{ const obj=license.obj; obj.unlocked=true; localStorage.setItem(licenseKey, JSON.stringify(obj)); license=readLicense(); };
+document.getElementById('resetLicense').onclick=()=>{ localStorage.removeItem(licenseKey); license=readLicense(); };
+// Audio
+let actx, master;
+function ensureAudio(){ if(actx) return; actx = new (window.AudioContext||window.webkitAudioContext)(); master=actx.createGain(); master.gain.value=.6; master.connect(actx.destination); }
+document.getElementById('startAudio').onclick=async()=>{ ensureAudio(); await actx.resume(); audioStarted=true; status('Audio ready'); };
+function scaleNotes(name){ if(name==='major') return [0,2,4,5,7,9,11,12]; if(name==='pent') return [0,3,5,7,10,12]; if(name==='chrom') return [0,1,2,3,4,5,6,7,8,9,10,11,12]; return [0,2,3,5,7,8,10,12]; }
+function playNoteFromPoint(x,y,ev){ if(!audioStarted||!actx) return; const c = hslFromHex(ev.color); const scale=scaleNotes(state.scale); const lane = clamp(Math.floor((1-y/paint.height)*(scale.length-1)),0,scale.length-1); const midi = 48 + scale[lane]; const freq = 440*Math.pow(2,(midi-69)/12);
+  const o=actx.createOscillator(), g=actx.createGain(), f=actx.createBiquadFilter(), d=actx.createDelay(.5), dg=actx.createGain();
+  o.type = c.b > c.r && c.b > c.g ? 'triangle' : c.r > c.g ? 'sawtooth' : 'square';
+  o.frequency.value = freq * (1 + (c.h-.5)*.05);
+  f.type='lowpass'; f.frequency.value = 600 + c.g*3200 + c.b*900; f.Q.value = .7 + c.r*5;
+  const now=actx.currentTime, dur=.08 + (ev.size/60)*.35 + c.g*.2;
+  g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime((.05 + c.r*.08)*state.synthMix, now+.01); g.gain.exponentialRampToValueAtTime(.0001, now+dur);
+  d.delayTime.value=.08 + c.b*.18; dg.gain.value=.1 + c.b*.22;
+  o.connect(f); f.connect(g); g.connect(master); g.connect(d); d.connect(dg); dg.connect(d); dg.connect(master); o.start(now); o.stop(now+dur+.4);
+}
+document.getElementById('playBtn').onclick=()=>{ playing=!playing; status(playing?'Playing':'Stopped'); if(playing && !raf){ lastTime=performance.now(); raf=requestAnimationFrame(loop); } };
+function densityAt(x){ let n=0; for(const ev of events){ for(const p of ev.pts){ if(Math.abs(p.x-x)<24) n++; } } return n; }
+function drawFx(scanX, dt){ fctx.clearRect(0,0,fx.width,fx.height); const dens = densityAt(scanX); const glow = clamp(dens/12,0,1);
+  // indie procedural halo vibe
+  const rg=fctx.createRadialGradient(scanX,fx.height*.45,10,scanX,fx.height*.45,220); rg.addColorStop(0,`rgba(255,120,180,${.18+.25*glow})`); rg.addColorStop(.5,`rgba(80,180,255,${.08+.10*glow})`); rg.addColorStop(1,'rgba(0,0,0,0)'); fctx.fillStyle=rg; fctx.fillRect(scanX-240,0,480,fx.height);
+  // playhead
+  fctx.strokeStyle='rgba(255,255,255,.7)'; fctx.lineWidth=2; fctx.beginPath(); fctx.moveTo(scanX,0); fctx.lineTo(scanX,fx.height); fctx.stroke();
+  // particles
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x+=p.vx*(1+glow*.8); p.y+=p.vy*(1+glow*.8); p.life-=dt*.0007; if(p.life<=0){ particles.splice(i,1); continue; } fctx.globalAlpha=Math.max(0,p.life); fctx.fillStyle=p.color; fctx.beginPath(); fctx.arc(p.x,p.y,p.size,0,Math.PI*2); fctx.fill(); }
+  fctx.globalAlpha=1;
+}
+function scanPosition(t){ const phase=t*state.tempo/60/4; if(state.scanMode==='ping'){ const p=(phase%2); return (p<1?p:2-p)*fx.width; } if(state.scanMode==='circle'){ return (Math.sin(phase*Math.PI*2)*.5+.5)*fx.width; } if(state.scanMode==='spiral'){ return ((phase*1.6)%1)*fx.width; } return (phase%1)*fx.width; }
+let lastTriggerX=-999;
+function loop(ts){ const dt=ts-lastTime; lastTime=ts; if(!playing){ raf=0; drawFx(-999,dt); return; } const x=scanPosition(ts/1000); drawFx(x,dt);
+  if(Math.abs(x-lastTriggerX)>16){ lastTriggerX=x; for(const ev of events){ const pts=ev.pts; const hit=pts.some(p=>Math.abs(p.x-x)<10); if(hit && ev.tool!=='mask' && ev.tool!=='motion'){ const p=pts[Math.floor(Math.random()*pts.length)]||pts[0]; playNoteFromPoint(p.x,p.y,ev); addParticle(p.x,p.y,ev.color,.8); } }
+  }
+  raf=requestAnimationFrame(loop);
+}
+fit(); redraw(); status('Ready');
+})();
+</script>
+</body>
+</html>

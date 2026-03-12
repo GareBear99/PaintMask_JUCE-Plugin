@@ -1,0 +1,18 @@
+{
+  "format": "paintmask-state-v1",
+  "strokes": [
+    {
+      "id": "demo-1",
+      "tool": "brush",
+      "colour": "ffff0000",
+      "thickness": 0.03,
+      "isMask": false,
+      "seed": 1337,
+      "points": [
+        { "x": 0.10, "y": 0.70, "pressure": 1.0, "opacity": 1.0, "timestampMs": 0 },
+        { "x": 0.25, "y": 0.55, "pressure": 1.0, "opacity": 1.0, "timestampMs": 20 },
+        { "x": 0.45, "y": 0.45, "pressure": 1.0, "opacity": 1.0, "timestampMs": 40 }
+      ]
+    }
+  ]
+}
