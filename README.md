@@ -239,6 +239,7 @@ Requirements:
 Build example:
 
 git clone https://github.com/GareBear99/PaintMask_JUCE-Plugin.git 
+
 cd PaintMask
 mkdir build
 cd build
