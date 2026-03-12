@@ -150,7 +150,7 @@ Lite includes:
 
 STUDIO MODE
 
-Unlock everything for $1/month.
+Unlock everything for $2/month.
 
 Studio features include:
 
