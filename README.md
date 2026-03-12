@@ -262,7 +262,7 @@ PaintMask is an indie project.
 
 If you enjoy it:
 
-• subscribe to Studio for $1/month  
+• subscribe to Studio for $2/month  
 • share it with other producers  
 • create brush packs  
 
